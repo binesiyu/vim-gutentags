@@ -38,6 +38,7 @@ let g:gutentags_modules = get(g:, 'gutentags_modules', ['ctags'])
 let g:gutentags_init_user_func = get(g:, 'gutentags_init_user_func', 
             \get(g:, 'gutentags_enabled_user_func', ''))
 
+let g:gutentags_add_ctrlp_root_markers = get(g:, 'gutentags_add_ctrlp_root_markers', 1)
 let g:gutentags_add_default_project_roots = get(g:, 'gutentags_add_default_project_roots', 1)
 let g:gutentags_project_root = get(g:, 'gutentags_project_root', [])
 if g:gutentags_add_default_project_roots
@@ -50,6 +51,7 @@ let g:gutentags_project_info = get(g:, 'gutentags_project_info', [])
 call add(g:gutentags_project_info, {'type': 'python', 'file': 'setup.py'})
 call add(g:gutentags_project_info, {'type': 'ruby', 'file': 'Gemfile'})
 
+let g:gutentags_exclude_filetypes = get(g:, 'gutentags_exclude_filetypes', [])
 let g:gutentags_exclude_project_root = get(g:, 'gutentags_exclude_project_root', ['/usr/local'])
 let g:gutentags_resolve_symlinks = get(g:, 'gutentags_resolve_symlinks', 0)
 let g:gutentags_generate_on_new = get(g:, 'gutentags_generate_on_new', 1)

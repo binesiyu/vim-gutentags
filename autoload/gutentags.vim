@@ -31,10 +31,10 @@ endfunction
 
 " Prints a message if debug tracing is enabled.
 function! gutentags#trace(message, ...)
-   if g:gutentags_trace || (a:0 && a:1)
-       let l:message = "gutentags: " . a:message
-       echom l:message
-   endif
+    if g:gutentags_trace || (a:0 && a:1)
+        let l:message = "gutentags: " . a:message
+        echom l:message
+    endif
 endfunction
 
 " Strips the ending slash in a path.
@@ -84,6 +84,7 @@ function! gutentags#get_cachefile(root_dir, filename) abort
         let l:tag_path = g:gutentags_cache_dir . '/' .
                     \tr(l:tag_path, '\/: ', '---_')
         let l:tag_path = substitute(l:tag_path, '/\-', '/', '')
+        let l:tag_path = substitute(l:tag_path, '[\-_]*$', '', '')
     endif
     let l:tag_path = gutentags#normalizepath(l:tag_path)
     return l:tag_path
@@ -184,11 +185,17 @@ function! gutentags#get_project_root(path) abort
     if g:gutentags_project_root_finder != ''
         return call(g:gutentags_project_root_finder, [a:path])
     endif
+    return gutentags#default_get_project_root(a:path)
+endfunction
 
+" Default implementation for finding project markers... useful when a custom
+" finder (`g:gutentags_project_root_finder`) wants to fallback to the default
+" behaviour.
+function! gutentags#default_get_project_root(path) abort
     let l:path = gutentags#stripslash(a:path)
     let l:previous_path = ""
     let l:markers = g:gutentags_project_root[:]
-    if exists('g:ctrlp_root_markers')
+    if g:gutentags_add_ctrlp_root_markers && exists('g:ctrlp_root_markers')
         for crm in g:ctrlp_root_markers
             if index(l:markers, crm) < 0
                 call add(l:markers, crm)
@@ -248,6 +255,12 @@ function! gutentags#setup_gutentags() abort
         return
     endif
 
+    " Don't setup gutentags for things that don't need it, or that could
+    " cause problems.
+    if index(g:gutentags_exclude_filetypes, &filetype) >= 0
+        return
+    endif
+
     " Let the user specify custom ways to disable Gutentags.
     if g:gutentags_init_user_func != '' &&
                 \!call(g:gutentags_init_user_func, [expand('%:p')])
@@ -265,6 +278,10 @@ function! gutentags#setup_gutentags() abort
         endif
         if !exists('b:gutentags_root')
             let b:gutentags_root = gutentags#get_project_root(l:buf_dir)
+        endif
+        if !len(b:gutentags_root)
+            call gutentags#trace("no valid project root.. no gutentags support.")
+            return
         endif
         if filereadable(b:gutentags_root . '/.notags')
             call gutentags#trace("'.notags' file found... no gutentags support.")
@@ -420,11 +437,24 @@ endfunction
 
 " (Re)Generate the tags file for the current buffer's file.
 function! s:manual_update_tags(bang) abort
-    let l:bn = bufnr('%')
-    for module in g:gutentags_modules
-        call s:update_tags(l:bn, module, a:bang, 0)
-    endfor
-    silent doautocmd User GutentagsUpdating
+    let l:restore_prev_trace = 0
+    let l:prev_trace = g:gutentags_trace
+    if &verbose > 0
+        let g:gutentags_trace = 1
+        let l:restore_prev_trace = 1
+    endif
+
+    try
+        let l:bn = bufnr('%')
+        for module in g:gutentags_modules
+            call s:update_tags(l:bn, module, a:bang, 0)
+        endfor
+        silent doautocmd User GutentagsUpdating
+    finally
+        if l:restore_prev_trace
+            let g:gutentags_trace = l:prev_trace
+        endif
+    endtry
 endfunction
 
 " (Re)Generate the tags file for a buffer that just go saved.
@@ -549,7 +579,7 @@ function! gutentags#fake(...)
 endfunction
 
 function! gutentags#default_io_cb(chan, msg) abort
-   call gutentags#trace(string(a:msg))
+    call gutentags#trace('[job output]: '.string(a:msg))
 endfunction
 
 if has('nvim')
@@ -601,21 +631,21 @@ endif
 " Returns which modules are currently generating something for the
 " current buffer.
 function! gutentags#inprogress()
-   " Does this buffer have gutentags enabled?
-   if !exists('b:gutentags_files')
-      return []
-   endif
+    " Does this buffer have gutentags enabled?
+    if !exists('b:gutentags_files')
+        return []
+    endif
 
-   " Find any module that has a job in progress for any of this buffer's
-   " tags files.
-   let l:modules_in_progress = []
-   for [module, tags_file] in items(b:gutentags_files)
-      let l:jobidx = gutentags#find_job_index_by_tags_file(module, tags_file)
-      if l:jobidx >= 0
-         call add(l:modules_in_progress, module)
-      endif
-   endfor
-   return l:modules_in_progress
+    " Find any module that has a job in progress for any of this buffer's
+    " tags files.
+    let l:modules_in_progress = []
+    for [module, tags_file] in items(b:gutentags_files)
+        let l:jobidx = gutentags#find_job_index_by_tags_file(module, tags_file)
+        if l:jobidx >= 0
+            call add(l:modules_in_progress, module)
+        endif
+    endfor
+    return l:modules_in_progress
 endfunction
 
 " }}}
